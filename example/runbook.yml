@@ -1,0 +1,14 @@
+vars:
+    env: dev
+    env_no: 1
+
+tasks:
+    - name: launch a lambda cloudformation stack
+      cloudformation:
+        stack_name: "deploy-lambda-{{.env}}-{{.env_no}}"
+        template: "cloudformation/lambda.yml"
+        disable_rollback: true
+        template_parameters:
+            Environment: "{{.env}}-{{.env_no}}"
+        tags:
+            Owner: "wolfeidau"

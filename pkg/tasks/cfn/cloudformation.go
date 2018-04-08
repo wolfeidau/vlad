@@ -5,6 +5,8 @@ import (
 	"path"
 	"strings"
 
+	"github.com/aws/aws-sdk-go/aws/session"
+
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/awserr"
 	"github.com/aws/aws-sdk-go/service/cloudformation"
@@ -15,27 +17,24 @@ import (
 )
 
 var (
-	cfnAPI cloudformationiface.CloudFormationAPI
-
 	defaultCapabilities = []string{"CAPABILITY_IAM", "CAPABILITY_NAMED_IAM"}
 )
 
-func SetCFNAPI(api cloudformationiface.CloudFormationAPI) {
-	cfnAPI = api
-}
-
-// CloudformationTask cloudformation task
-type CloudformationTask struct {
+// Task cloudformation task
+type Task struct {
 	Name   string
-	Params *CloudformationParams
+	Params *Params
+
+	// aws service
+	cfnAPI cloudformationiface.CloudFormationAPI
 
 	// results
 	action  string
 	results map[string]interface{}
 }
 
-// CloudformationParams parameters which were extracted from the runbook
-type CloudformationParams struct {
+// Params parameters which were extracted from the runbook
+type Params struct {
 	StackName          string             `mapstructure:"stack_name"`
 	Template           string             `mapstructure:"template"`
 	NotificationArns   []string           `mapstructure:"notification_arns"`
@@ -45,16 +44,17 @@ type CloudformationParams struct {
 }
 
 // New cloudformation task
-func New(name string, params *CloudformationParams) *CloudformationTask {
-	return &CloudformationTask{
+func New(name string, params *Params, sess *session.Session) *Task {
+	return &Task{
 		Name:    name,
 		Params:  params,
+		cfnAPI:  cloudformation.New(sess),
 		results: make(map[string]interface{}),
 	}
 }
 
 // Execute execute template
-func (ct *CloudformationTask) Execute(ctx *vlad.Context) error {
+func (ct *Task) Execute(ctx *vlad.Context) error {
 
 	templatePath := path.Join(ctx.BasePath, ct.Params.Template)
 
@@ -88,17 +88,17 @@ func (ct *CloudformationTask) Execute(ctx *vlad.Context) error {
 }
 
 // Validate validate
-func (ct *CloudformationTask) Validate() error {
+func (ct *Task) Validate() error {
 	return nil
 }
 
 // GetName get name
-func (ct *CloudformationTask) GetName() string {
+func (ct *Task) GetName() string {
 	return ct.Name
 }
 
-func (ct *CloudformationTask) createStack(templateBody []byte) (bool, error) {
-	res, err := cfnAPI.CreateStack(&cloudformation.CreateStackInput{
+func (ct *Task) createStack(templateBody []byte) (bool, error) {
+	res, err := ct.cfnAPI.CreateStack(&cloudformation.CreateStackInput{
 		StackName:        aws.String(ct.Params.StackName),
 		TemplateBody:     aws.String(string(templateBody)),
 		NotificationARNs: aws.StringSlice(ct.Params.NotificationArns),
@@ -123,8 +123,8 @@ func (ct *CloudformationTask) createStack(templateBody []byte) (bool, error) {
 	return true, nil
 }
 
-func (ct *CloudformationTask) updateStack(templateBody []byte) (bool, error) {
-	res, err := cfnAPI.UpdateStack(&cloudformation.UpdateStackInput{
+func (ct *Task) updateStack(templateBody []byte) (bool, error) {
+	res, err := ct.cfnAPI.UpdateStack(&cloudformation.UpdateStackInput{
 		StackName:        aws.String(ct.Params.StackName),
 		TemplateBody:     aws.String(string(templateBody)),
 		NotificationARNs: aws.StringSlice(ct.Params.NotificationArns),
@@ -147,7 +147,7 @@ func (ct *CloudformationTask) updateStack(templateBody []byte) (bool, error) {
 	return true, nil
 }
 
-func (ct *CloudformationTask) emitResults() {
+func (ct *Task) emitResults() {
 	logrus.WithFields(logrus.Fields{
 		"StackName": ct.Params.StackName,
 		"StackID":   ct.results["StackId"],

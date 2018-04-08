@@ -16,6 +16,8 @@ import (
 
 var (
 	cfnAPI cloudformationiface.CloudFormationAPI
+
+	defaultCapabilities = []string{"CAPABILITY_IAM", "CAPABILITY_NAMED_IAM"}
 )
 
 func SetCFNAPI(api cloudformationiface.CloudFormationAPI) {
@@ -24,23 +26,37 @@ func SetCFNAPI(api cloudformationiface.CloudFormationAPI) {
 
 // CloudformationTask cloudformation task
 type CloudformationTask struct {
-	Name               string             `mapstructure:"_"`
+	Name   string
+	Params *CloudformationParams
+
+	// results
+	action  string
+	results map[string]interface{}
+}
+
+// CloudformationParams parameters which were extracted from the runbook
+type CloudformationParams struct {
 	StackName          string             `mapstructure:"stack_name"`
 	Template           string             `mapstructure:"template"`
+	NotificationArns   []string           `mapstructure:"notification_arns"`
 	DisableRollback    bool               `mapstructure:"disable_rollback"`
 	TemplateParameters map[string]*string `mapstructure:"template_parameters"`
 	Tags               map[string]*string `mapstructure:"tags"`
 }
 
 // New cloudformation task
-func New(name string) *CloudformationTask {
-	return &CloudformationTask{Name: name}
+func New(name string, params *CloudformationParams) *CloudformationTask {
+	return &CloudformationTask{
+		Name:    name,
+		Params:  params,
+		results: make(map[string]interface{}),
+	}
 }
 
 // Execute execute template
 func (ct *CloudformationTask) Execute(ctx *vlad.Context) error {
 
-	templatePath := path.Join(ctx.BasePath, ct.Template)
+	templatePath := path.Join(ctx.BasePath, ct.Params.Template)
 
 	templateBody, err := ioutil.ReadFile(templatePath)
 	if err != nil {
@@ -66,6 +82,8 @@ func (ct *CloudformationTask) Execute(ctx *vlad.Context) error {
 
 	}
 
+	ct.emitResults()
+
 	return nil
 }
 
@@ -81,12 +99,13 @@ func (ct *CloudformationTask) GetName() string {
 
 func (ct *CloudformationTask) createStack(templateBody []byte) (bool, error) {
 	res, err := cfnAPI.CreateStack(&cloudformation.CreateStackInput{
-		StackName:       aws.String(ct.StackName),
-		TemplateBody:    aws.String(string(templateBody)),
-		Parameters:      awsParameters(ct.TemplateParameters),
-		DisableRollback: aws.Bool(ct.DisableRollback),
-		Capabilities:    []*string{aws.String("CAPABILITY_IAM"), aws.String("CAPABILITY_NAMED_IAM")},
-		Tags:            awsTags(ct.Tags),
+		StackName:        aws.String(ct.Params.StackName),
+		TemplateBody:     aws.String(string(templateBody)),
+		NotificationARNs: aws.StringSlice(ct.Params.NotificationArns),
+		Parameters:       awsParameters(ct.Params.TemplateParameters),
+		DisableRollback:  aws.Bool(ct.Params.DisableRollback),
+		Capabilities:     aws.StringSlice(defaultCapabilities),
+		Tags:             awsTags(ct.Params.Tags),
 	})
 	if err != nil {
 		if awsErr, ok := err.(awserr.Error); ok {
@@ -98,21 +117,20 @@ func (ct *CloudformationTask) createStack(templateBody []byte) (bool, error) {
 		}
 	}
 
-	logrus.WithFields(logrus.Fields{
-		"StackName": ct.StackName,
-		"StackID":   aws.StringValue(res.StackId),
-	}).Infof("%s stack created", ct.Name)
+	ct.action = "created"
+	ct.results["StackID"] = aws.StringValue(res.StackId)
 
 	return true, nil
 }
 
 func (ct *CloudformationTask) updateStack(templateBody []byte) (bool, error) {
 	res, err := cfnAPI.UpdateStack(&cloudformation.UpdateStackInput{
-		StackName:    aws.String(ct.StackName),
-		TemplateBody: aws.String(string(templateBody)),
-		Parameters:   awsParameters(ct.TemplateParameters),
-		Capabilities: []*string{aws.String("CAPABILITY_IAM"), aws.String("CAPABILITY_NAMED_IAM")},
-		Tags:         awsTags(ct.Tags),
+		StackName:        aws.String(ct.Params.StackName),
+		TemplateBody:     aws.String(string(templateBody)),
+		NotificationARNs: aws.StringSlice(ct.Params.NotificationArns),
+		Parameters:       awsParameters(ct.Params.TemplateParameters),
+		Capabilities:     aws.StringSlice(defaultCapabilities),
+		Tags:             awsTags(ct.Params.Tags),
 	})
 	if err != nil {
 		if awsErr, ok := err.(awserr.Error); ok {
@@ -123,12 +141,17 @@ func (ct *CloudformationTask) updateStack(templateBody []byte) (bool, error) {
 		return false, errors.Wrap(err, "failed to update stack")
 	}
 
-	logrus.WithFields(logrus.Fields{
-		"StackName": ct.StackName,
-		"StackID":   aws.StringValue(res.StackId),
-	}).Infof("%s stack updated", ct.Name)
+	ct.action = "updated"
+	ct.results["StackID"] = aws.StringValue(res.StackId)
 
 	return true, nil
+}
+
+func (ct *CloudformationTask) emitResults() {
+	logrus.WithFields(logrus.Fields{
+		"StackName": ct.Params.StackName,
+		"StackID":   ct.results["StackId"],
+	}).Infof("%s stack %s", ct.Name, ct.action)
 }
 
 func awsTags(tags map[string]*string) []*cloudformation.Tag {

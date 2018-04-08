@@ -11,6 +11,7 @@ import (
 	"github.com/sirupsen/logrus"
 	"github.com/wolfeidau/vlad/pkg/runbook"
 	"github.com/wolfeidau/vlad/pkg/tasks"
+	"github.com/wolfeidau/vlad/pkg/tasks/cfn"
 	"github.com/wolfeidau/vlad/pkg/vlad"
 )
 
@@ -55,13 +56,14 @@ func main() {
 			case "cloudformation":
 				name := fmt.Sprintf("task[%d]cloudformation", n)
 
-				cfnTask := tasks.Cloudformation(name)
-				err = mapstructure.Decode(v, cfnTask)
+				cfnParams := new(cfn.CloudformationParams)
+
+				err = mapstructure.Decode(v, cfnParams)
 				if err != nil {
 					logrus.Errorf("failed to decode task: %+v", err)
 				}
 
-				val := reflect.ValueOf(cfnTask)
+				val := reflect.ValueOf(cfnParams)
 
 				logrus.Debugf("%s running templates to update vars", name)
 
@@ -70,7 +72,7 @@ func main() {
 					logrus.Fatalf("%s failed to update template: %+v", name, err)
 				}
 
-				tasksToExec = append(tasksToExec, cfnTask)
+				tasksToExec = append(tasksToExec, tasks.Cloudformation(name, cfnParams))
 			}
 		}
 	}

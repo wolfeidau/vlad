@@ -35,6 +35,6 @@ func Setup() error {
 	return nil
 }
 
-func Cloudformation(name string) *cfn.CloudformationTask {
-	return cfn.New(name)
+func Cloudformation(name string, params *cfn.CloudformationParams) *cfn.CloudformationTask {
+	return cfn.New(name, params)
 }

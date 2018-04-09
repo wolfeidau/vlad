@@ -1,23 +1,24 @@
 # vlad
 
-A very lightweight application deployer (VLAD), this is modeled on the idea of using a declaritive YAML based format to automate the deployment of applications. It leans on the standard templating build into Go, along with the [Amazon Web Services Go SDK](https://aws.amazon.com/) to enable deployment of AWS resources.
+A versatile lightweight application deployer (VLAD), this is modeled on the idea of using a declaritive YAML based format to automate the deployment of applications. It leans on the standard templating build into Go, along with the [Amazon Web Services Go SDK](https://aws.amazon.com/) to enable deployment of AWS resources.
 
 # Overview
 
 Things I am planning to build into this tool:
 
-* Build a lightweight, fast deployment tool
-* Wrangle vars for multiple environments
-* Create, configure and delete resources in cloud services
-* Enable tight integration with cloud services for configuration storage and encryption
-* Integrate the ability to test tasks, and playback data to perform end to end testing of a [RunBook](#runbook)
+* Make something fast, simple and focused on a core set of problems.
+* Make it easy to get started with, nice to use, and provide visibility into the execution.
+* Wrangle vars for multiple environments.
+* Create, configure and delete resources in the [AWS](http://aws.amazon.com/) cloud platform.
+* Enable tight integration with cloud services for configuration storage and encryption.
+* Integrate metrics and flight recording into the execution process to support testing.
+* Make testing tasks a first class citizen using recorded data playback to perform end to end testing of a [RunBook](#runbook).
 
 The things I am NOT planning to do in this project:
 
-* Rebuild ansible
+* Rebuild Ansible
 * Make a massive everything tool
-
-Currently this tool is focused on the [AWS](http://aws.amazon.com/) cloud platform.
+* SSH to anything
 
 # Usage
 
@@ -40,12 +41,12 @@ tasks:
 
 # Features
 
-* Execute a runbook with some embedded vars.
+* Execute a RunBook with some embedded vars.
 * Launch and wait for the completion of [cloudformation](https://aws.amazon.com/cloudformation/) stacks.
 
 ## RunBook
 
-A `RunBook` is a declaritive YAML file which describes a list of vars, and some tasks to execute in sequence.
+A RunBook is a declarative YAML file which describes a list of vars, and some tasks to execute in sequence.
 
 # Become a Contributor
 

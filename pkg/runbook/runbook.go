@@ -6,8 +6,8 @@ import (
 	"io/ioutil"
 	"reflect"
 	"strings"
+	"text/template"
 
-	"github.com/alecthomas/template"
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
 	yaml "gopkg.in/yaml.v2"
